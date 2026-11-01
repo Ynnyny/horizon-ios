@@ -1,8 +1,6 @@
 //! Horizon: native Rust client for Minecraft Java Edition 26.3 gameplay.
 #![forbid(unsafe_code)]
-mod game;
-
-use horizon_client::{crash, logging};
+use horizon_client::{crash, game, logging};
 
 #[global_allocator]
 static ALLOCATOR: horizon_threads::Allocator = horizon_threads::Allocator;

@@ -385,6 +385,24 @@ use winit::{
     window::{CursorGrabMode, Window, WindowId},
 };
 
+/// The command line a host process (the iOS launcher) passes to [`run`].
+/// Set once, before the first call; the process's own arguments otherwise.
+static EMBEDDED_ARGS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+
+/// Run the game with `args` instead of `std::env::args()` (the iOS launcher).
+/// Call before [`run`]; only the first call counts.
+pub fn set_args(args: Vec<String>) {
+    let _ = EMBEDDED_ARGS.set(args);
+}
+
+fn embedded_args() -> std::vec::IntoIter<String> {
+    EMBEDDED_ARGS
+        .get()
+        .cloned()
+        .unwrap_or_else(|| std::env::args().skip(1).collect())
+        .into_iter()
+}
+
 /// The time a frame spends uploading chunk meshes when the player set no
 /// Chunk Updates or Upload Budget: a burst past it waits for the next frames.
 const AUTO_UPLOAD_TIME: Duration = Duration::from_millis(2);
@@ -488,7 +506,7 @@ impl Options {
     /// The command line, then what it asks of the process: the game folder, the account.
     /// A bad command line is a [`launch_api::UsageError`] (exit code 2, no crash report).
     fn read() -> Result<Option<Self>> {
-        let Some(mut o) = Self::parse(std::env::args().skip(1))
+        let Some(mut o) = Self::parse(embedded_args())
             .map_err(|e| launch_api::UsageError(e.to_string()))?
         else {
             return Ok(None);
@@ -546,10 +564,10 @@ impl Options {
     /// The command line alone: no file is read and nothing changes. `None` for `--help` and
     /// `--launch-api`, which print and end the run.
     fn parse(mut args: impl Iterator<Item = String>) -> Result<Option<Self>> {
-        let sibling = std::env::current_exe()?
-            .parent()
-            .ok_or("missing executable directory")?
-            .join("resources");
+        let sibling = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|dir| dir.join("resources")))
+            .unwrap_or_else(|| PathBuf::from("resources"));
         let mut o = Self {
             resources: if sibling.join("horizon-resources.json").exists() {
                 sibling
